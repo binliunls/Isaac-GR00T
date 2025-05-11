@@ -13,4 +13,4 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from .eagle_backbone import EagleBackbone  # noqa: F401
+from .eagle_backbone import EagleBackbone, EagleBackboneONNX  # noqa: F401

@@ -198,3 +198,18 @@ class EagleBackbone(nn.Module):
                 "backbone_attention_mask": attention_mask,
             }
         )  # [B, T2, hidden_size]
+
+class EagleBackboneONNX(EagleBackbone):
+    def forward(self, pixel_values: torch.Tensor, input_ids: torch.Tensor, attention_mask: torch.Tensor) -> torch.Tensor:
+        self.set_frozen_modules_to_eval_mode()
+        embeddings = get_embeddings(
+            self.model,
+            self.reproject_vision,
+            pixel_values=pixel_values,
+            input_ids=input_ids,
+            attention_mask=attention_mask,
+        )
+
+        embeddings = self.linear(embeddings)
+
+        return embeddings, attention_mask
