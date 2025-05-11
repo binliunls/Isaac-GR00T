@@ -382,3 +382,63 @@ class FlowmatchingActionHead(nn.Module):
     @property
     def dtype(self):
         return next(iter(self.parameters())).dtype
+
+class FlowmatchingActionHeadONNX(FlowmatchingActionHead):
+    @torch.no_grad()
+    def forward(self,
+                backbone_features: torch.Tensor, \
+                embodiment_id: torch.Tensor, \
+                state: torch.Tensor) -> torch.Tensor:
+        # Get vision and language embeddings.
+        vl_embeds = backbone_features
+        embodiment_id = embodiment_id
+
+        # Embed state.
+        state_features = self.state_encoder(state, embodiment_id)
+
+        # Set initial actions as the sampled noise.
+        batch_size = vl_embeds.shape[0]
+        device = vl_embeds.device
+        actions = torch.randn(
+            size=(batch_size, self.config.action_horizon, self.config.action_dim),
+            dtype=vl_embeds.dtype,
+            device=device,
+        )
+
+        num_steps = self.num_inference_timesteps
+        dt = 1.0 / num_steps
+
+        # Run denoising steps.
+        for t in range(num_steps):
+            t_cont = t / float(num_steps)  # e.g. goes 0, 1/N, 2/N, ...
+            t_discretized = int(t_cont * self.num_timestep_buckets)
+
+            # Embed noised action trajectory.
+            timesteps_tensor = torch.full(
+                size=(batch_size,), fill_value=t_discretized, device=device
+            )
+            action_features = self.action_encoder(actions, timesteps_tensor, embodiment_id)
+            # Maybe add position embedding.
+            if self.config.add_pos_embed:
+                pos_ids = torch.arange(action_features.shape[1], dtype=torch.long, device=device)
+                pos_embs = self.position_embedding(pos_ids).unsqueeze(0)
+                action_features = action_features + pos_embs
+
+            vl_embs = vl_embeds
+
+            # Join vision, language, state and action embedding along sequence dimension.
+            sa_embs = torch.cat((state_features, action_features), dim=1)
+
+            # Run model forward.
+            model_output = self.model(
+                hidden_states=sa_embs,
+                encoder_hidden_states=vl_embs,
+                timestep=timesteps_tensor,
+            )
+            pred = self.action_decoder(model_output, embodiment_id)
+
+            pred_velocity = pred[:, -self.action_horizon :]
+
+            # Update actions using euler integration.
+            actions = actions + dt * pred_velocity
+        return actions

@@ -27,8 +27,9 @@ from transformers.feature_extraction_utils import BatchFeature
 from .action_head.flow_matching_action_head import (
     FlowmatchingActionHead,
     FlowmatchingActionHeadConfig,
+    FlowmatchingActionHeadONNX,
 )
-from .backbone import EagleBackbone
+from .backbone import EagleBackbone, EagleBackboneONNX
 
 BACKBONE_FEATURE_KEY = "backbone_features"
 ACTION_KEY = "action_pred"
@@ -233,6 +234,32 @@ class GR00T_N1(PreTrainedModel):
         )
         return pretrained_model
 
+class GR00T_N1_ONNX(GR00T_N1):
+
+    def __init__(
+        self,
+        config: GR00T_N1Config,
+        local_model_path: str,
+    ):
+        assert isinstance(config.backbone_cfg, dict)
+        assert isinstance(config.action_head_cfg, dict)
+
+        super().__init__(config, local_model_path)
+        self.backbone = EagleBackboneONNX(**config.backbone_cfg)
+        action_head_cfg = FlowmatchingActionHeadConfig(**config.action_head_cfg)
+        self.action_head = FlowmatchingActionHeadONNX(action_head_cfg)
+
+    def forward(
+        self,
+        pixel_values: torch.Tensor,
+        input_ids: torch.Tensor,
+        attention_mask: torch.Tensor,
+        embodiment_id: torch.Tensor,
+        state: torch.Tensor
+    ) -> torch.Tensor:
+        backbone_features, backbone_attention_mask = self.backbone(pixel_values, input_ids, attention_mask)
+        action_head_outputs = self.action_head(backbone_features, backbone_attention_mask, embodiment_id, state)
+        return action_head_outputs
 
 # register
 AutoConfig.register("gr00t_n1", GR00T_N1Config)
