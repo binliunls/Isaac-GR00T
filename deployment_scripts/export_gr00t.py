@@ -15,10 +15,10 @@ from export_scripts.utils.export_utils import get_input_info
 
 def get_policy_and_dataset(dataset_path: str, model_path: str, device: str = "cuda"):
     # load the policy
-    data_config = DATA_CONFIG_MAP["fourier_gr1_arms_only"]
+    data_config = DATA_CONFIG_MAP["unitree_g1_v2"]
     modality_config = data_config.modality_config()
     modality_transform = data_config.transform()
-    EMBODIMENT_TAG = "gr1"
+    EMBODIMENT_TAG = "new_embodiment"
     policy = Gr00tPolicy(
         model_path=model_path,
         embodiment_tag=EMBODIMENT_TAG,
@@ -31,7 +31,7 @@ def get_policy_and_dataset(dataset_path: str, model_path: str, device: str = "cu
     dataset = LeRobotSingleDataset(
         dataset_path=dataset_path,
         modality_configs=modality_config,
-        video_backend="decord",
+        video_backend="torchvision_av",
         video_backend_kwargs=None,
         transforms=None,  # We'll handle transforms separately through the policy
         embodiment_tag=EMBODIMENT_TAG,
