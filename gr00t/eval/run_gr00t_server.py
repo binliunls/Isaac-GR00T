@@ -68,6 +68,22 @@ class ServerConfig:
     use_sim_policy_wrapper: bool = False
     """Whether to use the sim policy wrapper"""
 
+    # ── Optional: action-chunk smoothing wrapper ───────────────────────────
+    smooth_action_chunk: bool = False
+    """Wrap the policy with ActionChunkSmoothingWrapper to dampen per-step jitter."""
+
+    smoothing_type: str = "linear"
+    """Interpolation kind used by the smoothing wrapper: linear, cubic, or quadratic."""
+
+    smooth_window: int = 5
+    """Savitzky-Golay window length (odd, must be > smooth_order)."""
+
+    smooth_order: int = 3
+    """Savitzky-Golay polynomial order (< smooth_window)."""
+
+    time_points_scale: float = 2.0
+    """How much to densify the time axis before Savgol."""
+
 
 def main(config: ServerConfig):
     config.embodiment_tag = EmbodimentTag.resolve(config.embodiment_tag)
@@ -147,6 +163,24 @@ def main(config: ServerConfig):
         from gr00t.policy.gr00t_policy import Gr00tSimPolicyWrapper
 
         policy = Gr00tSimPolicyWrapper(policy)
+
+    # Apply action-chunk smoothing wrapper if requested.
+    if config.smooth_action_chunk:
+        from gr00t.policy.action_chunk_smoothing import ActionChunkSmoothingWrapper
+
+        policy = ActionChunkSmoothingWrapper(
+            policy,
+            smoothing_type=config.smoothing_type,
+            smooth_window=config.smooth_window,
+            smooth_order=config.smooth_order,
+            time_points_scale=config.time_points_scale,
+            strict=config.strict,
+        )
+        print(
+            f"✓ ActionChunkSmoothingWrapper enabled "
+            f"(type={config.smoothing_type}, window={config.smooth_window}, "
+            f"order={config.smooth_order}, scale={config.time_points_scale})"
+        )
 
     server = PolicyServer(
         policy=policy,
